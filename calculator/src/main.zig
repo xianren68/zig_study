@@ -7,10 +7,17 @@ const std = @import("std");
 
 pub fn main() !void {
     // 从标准输入流获取字符串
-    var str = try std.io.getStdIn().readUntilDelimiterAlloc(std.heap.page_allocator, '\n', 1024);
-    // 去除空格
-    str = std.mem.trim(u8, str, " ");
-    // 后缀字符串
+    var stdin = std.io.getStdIn();
+    var buf_reader = std.io.bufferedReader(stdin.reader());
+    var reader = buf_reader.reader();
+    var buf_array: [1024]u8 = undefined;
+    const str = try reader.readUntilDelimiterOrEof(&buf_array, '\n');
+    var string = str.?;
+    if (string[string.len - 1] == '\r') {
+        string = string[0 .. string.len - 1];
+    }
+    const value = try calculate(try toPostfix(string));
+    std.debug.print("Result: {d}\n", .{value});
 }
 
 // 将字符串转化为后缀表达式子
@@ -43,8 +50,10 @@ pub fn toPostfix(str: []const u8) ![][]const u8 {
         if (i == str.len) {
             break;
         }
-
-        if (s2.items.len == 0 or str[i] == '(') {
+        if (str[i] == ' ') {
+            i += 1;
+            continue;
+        } else if (s2.items.len == 0 or str[i] == '(') {
             const s22 = std.heap.page_allocator.alloc(u8, 1) catch unreachable;
             s22[0] = str[i];
             s2.append(s22) catch unreachable;
@@ -76,15 +85,15 @@ pub fn calculate(postfix: [][]const u8) !f64 {
     defer stack.deinit();
     for (postfix) |token| {
         if (token[0] >= '0' and token[0] <= '9') {
-            try stack.push(f64.parse(token));
+            try stack.append(std.fmt.parseFloat(f64, token) catch unreachable);
         } else {
-            const b = try stack.pop();
-            const a = try stack.pop();
+            const b = stack.pop();
+            const a = stack.pop();
             switch (token[0]) {
-                '+' => try stack.push(a + b),
-                '-' => try stack.push(a - b),
-                '*' => try stack.push(a * b),
-                '/' => try stack.push(a / b),
+                '+' => try stack.append(a + b),
+                '-' => try stack.append(a - b),
+                '*' => try stack.append(a * b),
+                '/' => try stack.append(a / b),
                 else => unreachable,
             }
         }
