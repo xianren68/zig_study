@@ -2,30 +2,41 @@ const std = @import("std");
 
 pub fn List(comptime T: type, comptime capacity: usize) type {
     return struct {
+        const Self = @This();
         items: []T,
-        len: usize,
+        _len: usize,
         allocator: std.mem.Allocator,
-        pub fn init(allocator: std.mem.Allocator) !@This() {
+        pub fn init(allocator: std.mem.Allocator) !Self {
             return .{
                 .items = try allocator.alloc(T, capacity),
-                .len = 0,
+                ._len = 0,
                 .allocator = allocator,
             };
         }
-        pub fn deinit(self: *@This()) void {
+        pub fn deinit(self: *Self) void {
             self.allocator.free(self.items);
         }
-        pub fn push(self: *@This(), item: T) !void {
-            if (self.len == self.items.len) {
+        pub fn push(self: *Self, item: T) !void {
+            if (self._len == self.items.len) {
                 self.items = try self.allocator.realloc(self.items, self.items.len * 2);
             }
-            self.items[self.len] = item;
-            self.len += 1;
+            self.items[self._len] = item;
+            self._len += 1;
         }
-        pub fn pop(self: *@This()) ?T {
-            if (self.len == 0) return null;
-            self.len -= 1;
-            return self.items[self.len];
+        pub fn pop(self: *Self) ?T {
+            if (self._len == 0) return null;
+            self._len -= 1;
+            return self.items[self._len];
+        }
+        pub fn len(self: *Self) usize {
+            return self._len;
+        }
+        pub fn appendSlice(self: *Self, slice: []const T) !void {
+            if (self._len + slice.len > self.items.len) {
+                self.items = try self.allocator.realloc(self.items, self._len + slice.len);
+            }
+            std.mem.copyForwards(T, self.items[self._len..], slice);
+            self._len += slice.len;
         }
     };
 }
